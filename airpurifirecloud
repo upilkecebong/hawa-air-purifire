@@ -5,34 +5,51 @@
 #define relay 14 // D5
 #define mq2 A0  // A0
 #define mq135 4 // D2
+#define TOKEN "token-device-thingsboard" //tokenthinsgboard
 
 int valmq2;
 int valmq135;
 
-const char* ssid = "Aneh Tapi Sayang";
-const char* password = "familysepedabaruku111";
+const char* ssid = "ssid-wifi";
+const char* password = "password-wifi";
 
+char thingsboardServer[] = "thingsboard.cloud";
+
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+
+int status = WL_IDLE_STATUS;
+unsigned long lastSend;
+
+
+//void setup
 void setup() {
   Serial.begin(9600);
+  mqttClient.setServer(thingsboardServer, 1883); 
+  connectWiFi();
+  lastSend = 0;
   pinMode(mq2,INPUT);
   pinMode(mq135,INPUT);
   pinMode(relay, OUTPUT);
-
-  WiFi.begin(ssid, password);
-
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP())
 }
 
+
+
+
 void loop() {
+
+  //looping koneksi ke thinsgboard
+  if (!mqttClient.connected()) {
+    reconnect();
+  }
+
+  if (millis() - lastSend > 1000) { // Update dan kirim tiap 1 detik
+    sendData();
+    lastSend = millis();
+  }
+
+  mqttClient.loop();
+
   valmq2=analogRead(mq2);
   valmq135=digitalRead(mq135);
   
@@ -53,4 +70,71 @@ void loop() {
     delay(1500); 
   }
 
+}
+
+
+
+void sendData(){
+  Serial.println("Mengambil data sensor");
+  int valmq2 = analogRead(mq2);
+  int valmq135 = digitalRead(mq135);
+
+  if (isnan(valmq2) || isnan(valmq135)) {
+    Serial.println("Gagal membaca sensor mq2 dan mq135!");
+    return;
+  }
+
+  String airStatusStr; //cerate string variable of air state
+ 
+  if(valmq2 > 500 || valmq135!=1 ){
+    airStatusStr="Gas Detected!";
+  }
+  else{
+    airStatusStr="Air Clear";
+  }
+
+  //create json object
+  StaticJsonDocument<200> jsonBuffer;
+  jsonBuffer["MQ 2"] = valmq2;
+  jsonBuffer["MQ 135"] = valmq135;
+  jsonBuffer["AIR STATE"] = airStatusStr;
+  char JSONmessageBuffer[100];
+  serializeJson(jsonBuffer, JSONmessageBuffer);
+  
+  mqttClient.publish("v1/devices/me/telemetry", JSONmessageBuffer);
+} 
+
+
+
+//connecting to wifi
+void connectWiFi(){
+  Serial.println("Menghubungkan ...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+
+
+//reconnecting to thingsboard
+void reconnect() {
+  while (!mqttClient.connected()) {
+    Serial.print("Menghubungkan ke ThingsBoard server...");
+    // Menggunakan token sebagai ID klien MQTT
+    if (mqttClient.connect("DHTClientID", TOKEN, NULL)) {
+      Serial.println("[BERHASIL]");
+    } else {
+      Serial.print("[GAGAL] [ rc = ");
+      Serial.print(mqttClient.state());
+      Serial.println(" ] [Coba lagi dalam 5 detik]");
+      // Tunggu 5 detik sebelum mencoba lagi
+      delay(5000);
+    }
+  }
 }
