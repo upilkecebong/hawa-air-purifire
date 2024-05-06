@@ -1,0 +1,56 @@
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h> 
+#include <ArduinoJson.h> 
+
+#define relay 14 // D5
+#define mq2 A0  // A0
+#define mq135 4 // D2
+
+int valmq2;
+int valmq135;
+
+const char* ssid = "Aneh Tapi Sayang";
+const char* password = "familysepedabaruku111";
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(mq2,INPUT);
+  pinMode(mq135,INPUT);
+  pinMode(relay, OUTPUT);
+
+  WiFi.begin(ssid, password);
+
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP())
+}
+
+void loop() {
+  valmq2=analogRead(mq2);
+  valmq135=digitalRead(mq135);
+  
+  Serial.print("MQ2: ");
+  Serial.println(valmq2);
+  Serial.print("MQ135: ");
+  Serial.println(valmq135);
+  delay(1500);
+
+  if(valmq2 > 500 || valmq135!=1 ){
+    digitalWrite(relay,LOW);
+    Serial.println("Gas Detected!"); 
+    delay(1500);
+  }
+  else{
+    digitalWrite(relay,HIGH);
+    Serial.println("Air Clear"); 
+    delay(1500); 
+  }
+
+}
